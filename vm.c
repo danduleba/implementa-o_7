@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #ifndef FRAMES
 #define FRAMES 128
@@ -30,7 +29,6 @@ typedef struct {
     Traducao tlb[ENTRADAS_TLB];
     int proximo_fifo;
     int ordem_lru[FRAMES], ordem_tlb[ENTRADAS_TLB];
-    unsigned long long acessos, faltas, acertos;
 } Simulador;
 
 static void erro(const char *mensagem)
@@ -114,7 +112,6 @@ static int resolver_falta(Simulador *s, FILE *disco, int pagina, Politica politi
     s->pagina_do_frame[frame] = pagina;
     s->tabela[pagina] = (EntradaPagina){ .frame = frame, .presente = true };
     if (politica == FIFO) s->proximo_fifo = (frame + 1) % FRAMES;
-    s->faltas++;
     return frame;
 }
 
@@ -169,7 +166,7 @@ static int inserir_na_tlb(Simulador *s, int pagina, int frame)
     return posicao;
 }
 
-static void traduzir(Simulador *s, int endereco, FILE *disco, FILE *saida,
+static void traduzir(Simulador *s, int endereco, FILE *disco,
                      Politica memoria, Politica tlb)
 {
     int pagina = endereco / BYTES_POR_PAGINA;
@@ -178,7 +175,6 @@ static void traduzir(Simulador *s, int endereco, FILE *disco, FILE *saida,
     int frame;
     if (posicao >= 0) {
         frame = s->tlb[posicao].frame;
-        s->acertos++;
         if (tlb == LRU) mover_para_fim(s->ordem_tlb, ENTRADAS_TLB, posicao);
     } else {
         if (s->tabela[pagina].presente) {
@@ -189,17 +185,30 @@ static void traduzir(Simulador *s, int endereco, FILE *disco, FILE *saida,
         if (MODO_TLB != SEM_TLB) posicao = inserir_na_tlb(s, pagina, frame);
     }
     if (memoria == LRU) mover_para_fim(s->ordem_lru, FRAMES, frame);
-    s->acessos++;
     int fisico = frame * BYTES_POR_PAGINA + deslocamento;
-    if (fprintf(saida, "Virtual address: %d TLB: %d Physical address: %d Value: %d\n",
-                endereco, posicao, fisico, s->memoria[frame][deslocamento]) < 0)
+    if (printf("Virtual address: %d TLB: %d Physical address: %d Value: %d\n",
+               endereco, posicao, fisico, s->memoria[frame][deslocamento]) < 0)
         erro("falha ao escrever a traducao.");
 }
 
-static char temporario[] = "correct.txt.XXXXXX";
-static void limpar_temporario(void)
+static uint16_t *ler_enderecos(FILE *entrada, size_t *quantidade)
 {
-    if (temporario[0]) remove(temporario);
+    size_t capacidade = 0;
+    uint16_t *enderecos = NULL;
+    int endereco;
+    while (ler_endereco(entrada, &endereco)) {
+        if (*quantidade == capacidade) {
+            if (capacidade > SIZE_MAX / 2 / sizeof(*enderecos))
+                erro("arquivo de enderecos muito grande.");
+            capacidade = capacidade ? capacidade * 2 : 256;
+            uint16_t *novos = realloc(enderecos, capacidade * sizeof(*enderecos));
+            if (!novos) erro("memoria insuficiente para os enderecos.");
+            enderecos = novos;
+        }
+        enderecos[(*quantidade)++] = (uint16_t) endereco;
+    }
+    if (*quantidade == 0) erro("arquivo de enderecos vazio.");
+    return enderecos;
 }
 
 int main(int argc, char *argv[])
@@ -212,32 +221,16 @@ int main(int argc, char *argv[])
     FILE *disco = fopen("BACKING_STORE.bin", "rb");
     if (!disco) erro("nao foi possivel abrir BACKING_STORE.bin.");
 
-    int endereco;
-    if (!ler_endereco(entrada, &endereco)) erro("arquivo de enderecos vazio.");
-    int fd = mkstemp(temporario);
-    if (fd < 0) erro("nao foi possivel criar a saida.");
-    if (atexit(limpar_temporario) != 0) {
-        limpar_temporario();
-        erro("falha ao preparar a saida.");
-    }
-    FILE *saida = fdopen(fd, "w");
-    if (!saida) erro("nao foi possivel abrir a saida.");
+    size_t quantidade = 0;
+    uint16_t *enderecos = ler_enderecos(entrada, &quantidade);
+    fclose(entrada);
 
     Simulador simulador = {0};
     iniciar(&simulador);
-    do {
-        traduzir(&simulador, endereco, disco, saida, memoria, tlb);
-    } while (ler_endereco(entrada, &endereco));
-
-    fprintf(saida, "Number of Translated Addresses = %llu\nPage Faults = %llu\n"
-            "Page Fault Rate = %.3f\nTLB Hits = %llu\nTLB Hit Rate = %.3f\n",
-            simulador.acessos, simulador.faltas, (double)simulador.faltas / simulador.acessos,
-            simulador.acertos, (double)simulador.acertos / simulador.acessos);
-    fclose(entrada);
+    for (size_t i = 0; i < quantidade; i++)
+        traduzir(&simulador, enderecos[i], disco, memoria, tlb);
+    free(enderecos);
     fclose(disco);
-    int falha = ferror(saida);
-    if (fclose(saida) != 0 || falha) erro("falha ao concluir a gravacao.");
-    if (rename(temporario, "correct.txt") != 0) erro("nao foi possivel salvar correct.txt.");
-    temporario[0] = '\0';
+    if (fflush(stdout) == EOF) erro("falha ao enviar as traducoes.");
     return EXIT_SUCCESS;
 }

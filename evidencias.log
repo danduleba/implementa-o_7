@@ -174,3 +174,71 @@ TLB Hits = 54
 TLB Hit Rate = 0.054
 
 Script done on 2026-11-25 15:53:04-03:00 [COMMAND_EXIT_CODE="0"]
+
+Verificacao da saida padrao para o Greep - 2026-11-25T16:17:04-03:00
+vm.c SHA-256: 9e55b180940add3ecb2085395ef5f455da49743e265c692b28268a044b40437e
+$ make
+cc  -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+$ ./vm address.txt lru fifo
+Virtual address: 16916 TLB: 0 Physical address: 20 Value: 0
+Virtual address: 12107 TLB: 1 Physical address: 17739 Value: -46
+OK: stdout identico ao gabarito (1000 linhas, 63462 bytes), sem estatisticas.
+OK: execucao em pasta sem permissao de escrita; nenhum arquivo criado.
+$ ./vm
+Erro: uso: ./vm <arquivo de enderecos> <fifo|lru> <fifo|lru> codigo 1
+$ ./vm address.txt fifo
+Erro: uso: ./vm <arquivo de enderecos> <fifo|lru> <fifo|lru> codigo 1
+$ ./vm address.txt fifo fifo extra
+Erro: uso: ./vm <arquivo de enderecos> <fifo|lru> <fifo|lru> codigo 1
+$ ./vm address.txt x fifo
+Erro: politica desconhecida; use fifo ou lru. codigo 1
+$ ./vm address.txt lru x
+Erro: politica desconhecida; use fifo ou lru. codigo 1
+$ ./vm arquivo-ausente lru fifo
+Erro: nao foi possivel abrir o arquivo de enderecos. codigo 1
+$ ./vm invalido-0.txt lru fifo
+Erro: arquivo de enderecos vazio. codigo 1
+$ ./vm invalido-1.txt lru fifo
+Erro: arquivo de enderecos vazio. codigo 1
+$ ./vm invalido-2.txt lru fifo
+Erro: endereco deve ser um inteiro decimal. codigo 1
+$ ./vm invalido-3.txt lru fifo
+Erro: endereco deve ser um inteiro decimal. codigo 1
+$ ./vm invalido-4.txt lru fifo
+Erro: endereco deve ser um inteiro decimal. codigo 1
+$ ./vm invalido-5.txt lru fifo
+Erro: endereco fora da faixa de 0 a 65535. codigo 1
+$ ./vm invalido-6.txt lru fifo
+Erro: endereco deve ser um inteiro decimal. codigo 1
+$ ./vm invalido-7.txt lru fifo
+Erro: endereco fora da faixa de 0 a 65535. codigo 1
+$ ./vm sem-leitura lru fifo
+Erro: nao foi possivel abrir o arquivo de enderecos. codigo 1
+OK: 15 chamadas invalidas sem traducao parcial.
+$ make testar
+python3 testes/verificar.py
+make[1]: Entering directory '/tmp/teste-vm-yezinq7c'
+cc -DFRAMES=256 -DMODO_TLB=SEM_TLB -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-yezinq7c'
+OK sem TLB: 256 frames, fifo, 244 faltas
+OK sem TLB: 256 frames, lru, 244 faltas
+make[1]: Entering directory '/tmp/teste-vm-yezinq7c'
+cc -DFRAMES=128 -DMODO_TLB=SEM_TLB -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-yezinq7c'
+OK sem TLB: 128 frames, fifo, 538 faltas
+OK sem TLB: 128 frames, lru, 539 faltas
+make[1]: Entering directory '/tmp/teste-vm-yezinq7c'
+cc -DMODO_TLB=TLB_SEQUENCIAL -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-yezinq7c'
+make[1]: Entering directory '/tmp/teste-vm-yezinq7c'
+cc  -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-yezinq7c'
+OK TLB: fifo/fifo, saídas sequencial e paralela idênticas
+OK TLB: fifo/lru, saídas sequencial e paralela idênticas
+OK TLB: lru/fifo, saídas sequencial e paralela idênticas
+OK TLB: lru/lru, saídas sequencial e paralela idênticas
+OK limites e substituição da TLB nas quatro combinações.
+OK gabarito lru/fifo: SHA-256 0a8703aa83c7e5f1b3eaf1a6fb80f2cd4ca9f109090d3d32a95e90cd6bc830f2
+$ make clean
+rm -f vm
+Verificacao concluida.
