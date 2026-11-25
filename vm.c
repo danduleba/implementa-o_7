@@ -2,6 +2,7 @@
 #include "vm.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -21,6 +22,11 @@ typedef enum { FIFO, LRU } Politica;
 typedef struct {
     int pagina, frame;
 } Traducao;
+
+typedef struct {
+    uint16_t endereco;
+    int posicao_tlb, fisico, valor;
+} Acesso;
 
 typedef struct {
     EntradaPagina tabela[PAGINAS];
@@ -166,11 +172,11 @@ static int inserir_na_tlb(Simulador *s, int pagina, int frame)
     return posicao;
 }
 
-static void traduzir(Simulador *s, int endereco, FILE *disco,
+static void traduzir(Simulador *s, Acesso *acesso, FILE *disco,
                      Politica memoria, Politica tlb)
 {
-    int pagina = endereco / BYTES_POR_PAGINA;
-    int deslocamento = endereco % BYTES_POR_PAGINA;
+    int pagina = acesso->endereco / BYTES_POR_PAGINA;
+    int deslocamento = acesso->endereco % BYTES_POR_PAGINA;
     int posicao = procurar_na_tlb(s->tlb, pagina);
     int frame;
     if (posicao >= 0) {
@@ -185,30 +191,40 @@ static void traduzir(Simulador *s, int endereco, FILE *disco,
         if (MODO_TLB != SEM_TLB) posicao = inserir_na_tlb(s, pagina, frame);
     }
     if (memoria == LRU) mover_para_fim(s->ordem_lru, FRAMES, frame);
-    int fisico = frame * BYTES_POR_PAGINA + deslocamento;
-    if (printf("Virtual address: %d TLB: %d Physical address: %d Value: %d\n",
-               endereco, posicao, fisico, s->memoria[frame][deslocamento]) < 0)
-        erro("falha ao escrever a traducao.");
+    acesso->posicao_tlb = posicao;
+    acesso->fisico = frame * BYTES_POR_PAGINA + deslocamento;
+    acesso->valor = s->memoria[frame][deslocamento];
 }
 
-static uint16_t *ler_enderecos(FILE *entrada, size_t *quantidade)
+static Acesso *ler_enderecos(FILE *entrada, size_t *quantidade)
 {
     size_t capacidade = 0;
-    uint16_t *enderecos = NULL;
+    Acesso *acessos = NULL;
     int endereco;
     while (ler_endereco(entrada, &endereco)) {
         if (*quantidade == capacidade) {
-            if (capacidade > SIZE_MAX / 2 / sizeof(*enderecos))
+            if (capacidade > SIZE_MAX / 2 / sizeof(*acessos))
                 erro("arquivo de enderecos muito grande.");
             capacidade = capacidade ? capacidade * 2 : 256;
-            uint16_t *novos = realloc(enderecos, capacidade * sizeof(*enderecos));
+            Acesso *novos = realloc(acessos, capacidade * sizeof(*acessos));
             if (!novos) erro("memoria insuficiente para os enderecos.");
-            enderecos = novos;
+            acessos = novos;
         }
-        enderecos[(*quantidade)++] = (uint16_t) endereco;
+        acessos[*quantidade].endereco = (uint16_t) endereco;
+        (*quantidade)++;
     }
     if (*quantidade == 0) erro("arquivo de enderecos vazio.");
-    return enderecos;
+    return acessos;
+}
+
+static void escrever_traducoes(FILE *saida, const Acesso *acessos, size_t quantidade)
+{
+    for (size_t i = 0; i < quantidade; i++) {
+        const Acesso *a = &acessos[i];
+        if (fprintf(saida, "Virtual address: %d TLB: %d Physical address: %d Value: %d\n",
+                    (int)a->endereco, a->posicao_tlb, a->fisico, a->valor) < 0)
+            erro("falha ao escrever a traducao.");
+    }
 }
 
 int main(int argc, char *argv[])
@@ -222,15 +238,25 @@ int main(int argc, char *argv[])
     if (!disco) erro("nao foi possivel abrir BACKING_STORE.bin.");
 
     size_t quantidade = 0;
-    uint16_t *enderecos = ler_enderecos(entrada, &quantidade);
+    Acesso *acessos = ler_enderecos(entrada, &quantidade);
     fclose(entrada);
 
     Simulador simulador = {0};
     iniciar(&simulador);
     for (size_t i = 0; i < quantidade; i++)
-        traduzir(&simulador, enderecos[i], disco, memoria, tlb);
-    free(enderecos);
+        traduzir(&simulador, &acessos[i], disco, memoria, tlb);
     fclose(disco);
+
+    escrever_traducoes(stdout, acessos, quantidade);
     if (fflush(stdout) == EOF) erro("falha ao enviar as traducoes.");
+
+    FILE *arquivo = fopen("correct.txt", "w");
+    if (arquivo) {
+        escrever_traducoes(arquivo, acessos, quantidade);
+        if (fclose(arquivo) != 0) erro("falha ao concluir correct.txt.");
+    } else if (errno != EACCES && errno != EROFS) {
+        erro("nao foi possivel abrir correct.txt para escrita.");
+    }
+    free(acessos);
     return EXIT_SUCCESS;
 }
