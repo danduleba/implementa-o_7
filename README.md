@@ -24,7 +24,7 @@ A TLB mantém sua própria ordem de substituição. Ao reutilizar um frame, o si
 
 ## Conferência do exemplo
 
-Para rodar os testes automáticos, é preciso ter Python 3 e os dois arquivos de exemplo na pasta do projeto:
+Para rodar os testes automáticos, use o projeto extraído de `dad.tar`, que inclui a pasta `testes/`. É preciso ter Python 3 e os dois arquivos de exemplo na pasta do projeto.
 
 ```sh
 make testar
