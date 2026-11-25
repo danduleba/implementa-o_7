@@ -35,6 +35,7 @@ typedef struct {
     Traducao tlb[ENTRADAS_TLB];
     int proximo_fifo;
     int ordem_lru[FRAMES], ordem_tlb[ENTRADAS_TLB];
+    size_t faltas_de_pagina, acertos_tlb;
 } Simulador;
 
 static void erro(const char *mensagem)
@@ -117,6 +118,7 @@ static int resolver_falta(Simulador *s, FILE *disco, int pagina, Politica politi
     }
     s->pagina_do_frame[frame] = pagina;
     s->tabela[pagina] = (EntradaPagina){ .frame = frame, .presente = true };
+    s->faltas_de_pagina++;
     if (politica == FIFO) s->proximo_fifo = (frame + 1) % FRAMES;
     return frame;
 }
@@ -180,6 +182,7 @@ static void traduzir(Simulador *s, Acesso *acesso, FILE *disco,
     int posicao = procurar_na_tlb(s->tlb, pagina);
     int frame;
     if (posicao >= 0) {
+        s->acertos_tlb++;
         frame = s->tlb[posicao].frame;
         if (tlb == LRU) mover_para_fim(s->ordem_tlb, ENTRADAS_TLB, posicao);
     } else {
@@ -253,6 +256,13 @@ int main(int argc, char *argv[])
     FILE *arquivo = fopen("correct.txt", "w");
     if (arquivo) {
         escrever_traducoes(arquivo, acessos, quantidade);
+        if (fprintf(arquivo, "Number of Translated Addresses = %zu\n"
+                    "Page Faults = %zu\nPage Fault Rate = %.3f\n"
+                    "TLB Hits = %zu\nTLB Hit Rate = %.3f\n",
+                    quantidade, simulador.faltas_de_pagina,
+                    (double)simulador.faltas_de_pagina / quantidade,
+                    simulador.acertos_tlb, (double)simulador.acertos_tlb / quantidade) < 0)
+            erro("falha ao escrever as estatisticas.");
         if (fclose(arquivo) != 0) erro("falha ao concluir correct.txt.");
     } else if (errno != EACCES && errno != EROFS) {
         erro("nao foi possivel abrir correct.txt para escrita.");
