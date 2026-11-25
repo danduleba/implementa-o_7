@@ -1,0 +1,176 @@
+PASS: 1000 traducoes e cinco estatisticas iguais a referencia extraida do PDF.
+PASS: substituicao e limites, memoria fifo TLB fifo
+PASS: substituicao e limites, memoria fifo TLB lru
+PASS: substituicao e limites, memoria lru TLB fifo
+PASS: substituicao e limites, memoria lru TLB lru
+PASS: argumentos, arquivo ausente e seis entradas invalidas rejeitados com mensagem.
+
+Validacao 2026-11-23 14:08:38
+vm.c SHA256: cb6b1db3fed760a2ed55e681ef0f5bb6dbc12c71fff14cb1a97bf762a1ebc5b5
+PASS fifo fifo 396 traducoes e estatisticas comparadas com modelo por ordem temporal
+PASS fifo lru 396 traducoes e estatisticas comparadas com modelo por ordem temporal
+PASS lru fifo 396 traducoes e estatisticas comparadas com modelo por ordem temporal
+PASS lru lru 396 traducoes e estatisticas comparadas com modelo por ordem temporal
+PASS 15 erros de entrada/arquivo diagnosticados; resultado anterior preservado
+PASS exemplo oficial lru fifo: 1000 enderecos
+Number of Translated Addresses = 1000
+Page Faults = 539
+Page Fault Rate = 0.539
+TLB Hits = 54
+TLB Hit Rate = 0.054
+
+Verificacao da substituicao de paginas - 2026-11-24 17:50:22
+vm.c SHA256: 344bd2e8e5af71cdd9918ce6ac1e551f358903ada3de837773474963b699e52d
+Sequencia de paginas: 0 a 127, 0, 128, 0.
+PASS com TLB fifo e lru: FIFO substituiu o frame 0 (130 faltas); LRU substituiu o frame 1 (129 faltas).
+PASS lru fifo: 1005 linhas e 63577 bytes identicos a referencia reconstruida do PDF.
+
+Verificacao da tabela e das buscas na TLB - 2026-11-25 15:31:23
+vm.c SHA256: afdb1f3e025a2cbc310c05fb533486ffbb31c766bc6038c062778cb8914d813c
+Comando: make testar
+OK sem TLB: 256 frames, fifo, 244 faltas
+OK sem TLB: 256 frames, lru, 244 faltas
+OK sem TLB: 128 frames, fifo, 538 faltas
+OK sem TLB: 128 frames, lru, 539 faltas
+OK TLB: fifo/fifo, saídas sequencial e paralela idênticas
+OK TLB: fifo/lru, saídas sequencial e paralela idênticas
+OK TLB: lru/fifo, saídas sequencial e paralela idênticas
+OK TLB: lru/lru, saídas sequencial e paralela idênticas
+OK gabarito lru/fifo: SHA-256 05574ab43f7834a48696eb2cc6cee770c37959e5fe464760580946952f874106
+Script started on 2026-11-25 15:32:58-03:00 [COMMAND="bash sessao.sh" <not executed on terminal>]
+
+$ date -Iseconds
+2026-11-25T15:32:58-03:00
+
+$ sha256sum vm.c vm.h Makefile testes/verificar.py address.txt BACKING_STORE.bin
+afdb1f3e025a2cbc310c05fb533486ffbb31c766bc6038c062778cb8914d813c  vm.c
+6a29446a141ce5e34e6bceae8287d01e3214e7bf87d5b98dfe7038a33d05a38f  vm.h
+b744bfc66b6622dd715209250b74be30abf1bfd07539746c73839c9f259eec63  Makefile
+d48be645ece03f4000d223824ab86f32579ef3f69154d9dab79e3fa3c96a5817  testes/verificar.py
+91dc5c6114930e2af532cb30a138d521f3ad470fd6b941470b9be3ef7f4c6b32  address.txt
+6b455ced8be207fda06d48e8fedd5e081b303b45d3ac1685ff630efd91d1c464  BACKING_STORE.bin
+
+$ make
+cc  -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+
+$ ./vm address.txt lru fifo
+
+$ head -n 1 correct.txt
+Virtual address: 16916 TLB: 0 Physical address: 20 Value: 0
+
+$ tail -n 5 correct.txt
+Number of Translated Addresses = 1000
+Page Faults = 539
+Page Fault Rate = 0.539
+TLB Hits = 54
+TLB Hit Rate = 0.054
+
+$ wc -lc correct.txt
+ 1005 63577 correct.txt
+
+$ cmp referencia.txt correct.txt
+
+$ sha256sum referencia.txt correct.txt
+05574ab43f7834a48696eb2cc6cee770c37959e5fe464760580946952f874106  referencia.txt
+05574ab43f7834a48696eb2cc6cee770c37959e5fe464760580946952f874106  correct.txt
+
+$ make testar
+python3 testes/verificar.py
+make[1]: Entering directory '/tmp/teste-vm-__7bdud7'
+cc -DFRAMES=256 -DMODO_TLB=SEM_TLB -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-__7bdud7'
+OK sem TLB: 256 frames, fifo, 244 faltas
+OK sem TLB: 256 frames, lru, 244 faltas
+make[1]: Entering directory '/tmp/teste-vm-__7bdud7'
+cc -DFRAMES=128 -DMODO_TLB=SEM_TLB -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-__7bdud7'
+OK sem TLB: 128 frames, fifo, 538 faltas
+OK sem TLB: 128 frames, lru, 539 faltas
+make[1]: Entering directory '/tmp/teste-vm-__7bdud7'
+cc -DMODO_TLB=TLB_SEQUENCIAL -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-__7bdud7'
+make[1]: Entering directory '/tmp/teste-vm-__7bdud7'
+cc  -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-__7bdud7'
+OK TLB: fifo/fifo, saídas sequencial e paralela idênticas
+OK TLB: fifo/lru, saídas sequencial e paralela idênticas
+OK TLB: lru/fifo, saídas sequencial e paralela idênticas
+OK TLB: lru/lru, saídas sequencial e paralela idênticas
+OK gabarito lru/fifo: SHA-256 05574ab43f7834a48696eb2cc6cee770c37959e5fe464760580946952f874106
+
+$ ./vm
+Erro: uso: ./vm <arquivo de enderecos> <fifo|lru> <fifo|lru>
+OK: erro diagnosticado (codigo 1)
+
+$ ./vm address.txt x fifo
+Erro: politica desconhecida; use fifo ou lru.
+OK: erro diagnosticado (codigo 1)
+
+$ ./vm address.txt lru x
+Erro: politica desconhecida; use fifo ou lru.
+OK: erro diagnosticado (codigo 1)
+
+$ ./vm nao-existe.txt lru fifo
+Erro: nao foi possivel abrir o arquivo de enderecos.
+OK: erro diagnosticado (codigo 1)
+
+$ ./vm formato-invalido.txt lru fifo
+Erro: endereco deve ser um inteiro decimal.
+OK: erro diagnosticado (codigo 1)
+
+$ ./vm fora-da-faixa.txt lru fifo
+Erro: endereco fora da faixa de 0 a 65535.
+OK: erro diagnosticado (codigo 1)
+
+$ ./vm vazio.txt lru fifo
+Erro: arquivo de enderecos vazio.
+OK: erro diagnosticado (codigo 1)
+
+$ cmp referencia.txt correct.txt
+
+$ make clean
+rm -f vm
+
+$ test \! -e vm
+OK: sessao de verificacao concluida.
+
+Script done on 2026-11-25 15:33:08-03:00 [COMMAND_EXIT_CODE="0"]
+Script started on 2026-11-25 15:52:23-03:00 [COMMAND="make testar" TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="154" LINES="14"]
+python3 testes/verificar.py
+make[1]: Entering directory '/tmp/teste-vm-nw8zmtej'
+cc -DFRAMES=256 -DMODO_TLB=SEM_TLB -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-nw8zmtej'
+OK sem TLB: 256 frames, fifo, 244 faltas
+OK sem TLB: 256 frames, lru, 244 faltas
+make[1]: Entering directory '/tmp/teste-vm-nw8zmtej'
+cc -DFRAMES=128 -DMODO_TLB=SEM_TLB -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-nw8zmtej'
+OK sem TLB: 128 frames, fifo, 538 faltas
+OK sem TLB: 128 frames, lru, 539 faltas
+make[1]: Entering directory '/tmp/teste-vm-nw8zmtej'
+cc -DMODO_TLB=TLB_SEQUENCIAL -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-nw8zmtej'
+make[1]: Entering directory '/tmp/teste-vm-nw8zmtej'
+cc  -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
+make[1]: Leaving directory '/tmp/teste-vm-nw8zmtej'
+OK TLB: fifo/fifo, saídas sequencial e paralela idênticas
+OK TLB: fifo/lru, saídas sequencial e paralela idênticas
+OK TLB: lru/fifo, saídas sequencial e paralela idênticas
+OK TLB: lru/lru, saídas sequencial e paralela idênticas
+OK gabarito lru/fifo: SHA-256 05574ab43f7834a48696eb2cc6cee770c37959e5fe464760580946952f874106
+
+Script done on 2026-11-25 15:52:30-03:00 [COMMAND_EXIT_CODE="0"]
+Script started on 2026-11-25 15:53:02-03:00 [COMMAND="set -ex; make; ./vm address.txt lru fifo; head -n 1 correct.txt; tail -n 5 correct.txt" TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="154" LINES="53"]
++ make
+cc  -std=c11 -Wall -Wextra -Wpedantic -pthread vm.c -o vm
++ ./vm address.txt lru fifo
++ head -n 1 correct.txt
+Virtual address: 16916 TLB: 0 Physical address: 20 Value: 0
++ tail -n 5 correct.txt
+Number of Translated Addresses = 1000
+Page Faults = 539
+Page Fault Rate = 0.539
+TLB Hits = 54
+TLB Hit Rate = 0.054
+
+Script done on 2026-11-25 15:53:04-03:00 [COMMAND_EXIT_CODE="0"]
